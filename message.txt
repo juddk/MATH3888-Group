@@ -1,0 +1,73 @@
+import yfinance as yf
+import pandas as pd
+import numpy as np
+import scipy.stats as si
+import matplotlib.pyplot as plt
+from scipy.stats import norm, shapiro
+import seaborn as sns
+
+# Ticker Symbols List
+tickers = [
+    'AAPL', 'MSFT', 'GOOG', 'AMZN', 'TSLA', 'NVDA', 'META', 'NFLX', 'BRK-B', 'V',
+    'JNJ', 'JPM', 'PG', 'DIS', 'MA', 'XOM', 'HD', 'PFE', 'KO', 'PEP',
+    'ABBV', 'CVX', 'BAC', 'T', 'MRK', 'NKE', 'UNH', 'WMT', 'VZ', 'ADBE',
+    'CSCO', 'INTC', 'CRM', 'WFC', 'COST', 'PYPL', 'LLY', 'MDT', 'ORCL', 'MCD',
+    'UPS', 'QCOM', 'C', 'DHR', 'SPGI', 'MS', 'IBM', 'RTX', 'BA', 'BLK'
+]
+
+# Define the date range
+start_date = '2023-12-01'
+end_date = '2024-01-01'
+
+# Initialize an empty dictionary to store log returns
+log_returns = {}
+
+# Fetch stock data and compute log returns
+for ticker in tickers:
+    try:
+        # Fetch adjusted close prices from yfinance
+        stock_data = yf.download(ticker, start=start_date, end=end_date)['Adj Close']
+        
+        # Ensure there are at least 3 data points and no missing data
+        if stock_data.isnull().sum() == 0 and len(stock_data) >= 3:
+            # Calculate log returns
+            stock_log_return = np.log(stock_data / stock_data.shift(1)).dropna()
+            log_returns[ticker] = stock_log_return
+            
+            # Perform the Shapiro-Wilk test on log returns
+            stat, p_value = shapiro(stock_log_return)
+            print(f'Shapiro-Wilk test for {ticker}: p-value = {p_value:.4f}')
+        else:
+            print(f"Skipping {ticker}: insufficient data or missing data.")
+    
+    except Exception as e:
+        print(f"Error fetching data for {ticker}: {e}")
+
+# Concatenate all valid log returns into a single list
+if log_returns:
+    all_log_returns = pd.concat(log_returns.values())
+
+    # Plot Q-Q plot for the concatenated log returns
+    si.probplot(all_log_returns, dist="norm", plot=plt)
+    plt.title('Q-Q Plot of Log Returns for 50 Companies from 2020-01-01 to 2024-01-01')
+    plt.show()
+
+    # Plot histogram of the log returns
+    plt.figure(figsize=(10, 6))
+    sns.histplot(all_log_returns, bins=50, kde=False, color='blue', stat="density")
+
+    # Fit a normal distribution to the log returns
+    mu, std = norm.fit(all_log_returns)
+    
+    # Plot the normal distribution curve
+    xmin, xmax = plt.xlim()
+    x = np.linspace(xmin, xmax, 100)
+    p = norm.pdf(x, mu, std)
+    plt.plot(x, p, 'r', linewidth=2)
+    title = f"Histogram of Log Returns for 50 Companies from 2020-01-01 to 2024-01-01 \nMean: {mu:.4f}, Std Dev: {std:.4f}"
+    plt.title(title)
+    plt.xlabel("Log Returns")
+    plt.ylabel("Density")
+    plt.show()
+else:
+    print("No valid data available for any stock.")
